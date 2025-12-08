@@ -3,101 +3,94 @@
 namespace App\Controller;
 
 use App\Entity\Booking;
-use App\Entity\Guest;
-use App\Entity\Room;
-use App\Repository\BookingRepository;
-use App\Repository\GuestRepository;
-use App\Repository\RoomRepository;
+use App\Services\BookingManager;
+use App\Services\RequestCheckerService;
 use Doctrine\ORM\EntityManagerInterface;
+use Exception;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 
-#[Route('/booking')]
 class BookingController extends AbstractController
 {
+    const ITEMS_PER_PAGE = 10;
+    const REQUIRED_FIELDS = ['guest_id', 'room_id', 'check_in', 'check_out'];
+
+    private EntityManagerInterface $em;
+    private BookingManager $bookingManager;
+    private RequestCheckerService $checker;
+
     public function __construct(
-        private EntityManagerInterface $em,
-        private BookingRepository $bookingRepo,
-        private GuestRepository $guestRepo,
-        private RoomRepository $roomRepo
-    ) {}
-
-    // GET ALL BOOKINGS
-    #[Route('/', name: 'booking_index', methods: ['GET'])]
-    public function index(): JsonResponse
-    {
-        $bookings = $this->bookingRepo->findAll();
-
-        $data = [];
-        foreach ($bookings as $b) {
-            $data[] = [
-                'id' => $b->getId(),
-                'guest' => $b->getGuest()->getFullName(),
-                'room' => $b->getRoom()->getRoomNumber(),
-                'check_in' => $b->getCheckIn()->format('Y-m-d'),
-                'check_out' => $b->getCheckOut()->format('Y-m-d'),
-                'status' => $b->getStatus(),
-            ];
-        }
-
-        return new JsonResponse($data);
+        EntityManagerInterface $em,
+        BookingManager $bookingManager,
+        RequestCheckerService $checker
+    ) {
+        $this->em = $em;
+        $this->bookingManager = $bookingManager;
+        $this->checker = $checker;
     }
 
-    // GET ONE BOOKING
-    #[Route('/{id}', name: 'booking_show', methods: ['GET'])]
-    public function show(int $id): JsonResponse
+    /**
+     * GET collection (pagination + filters)
+     */
+    #[Route('/bookings', name: 'booking_collection', methods: ['GET'])]
+    public function getCollection(Request $request): JsonResponse
     {
-        $booking = $this->bookingRepo->find($id);
+        $query = $request->query->all();
+
+        $itemsPerPage = isset($query['itemsPerPage']) ? (int)$query['itemsPerPage'] : self::ITEMS_PER_PAGE;
+        $page = isset($query['page']) ? (int)$query['page'] : 1;
+
+        $result = $this->em
+            ->getRepository(Booking::class)
+            ->getAllBookingsByFilter($query, $itemsPerPage, $page);
+
+        return new JsonResponse($result);
+    }
+
+    /**
+     * GET /bookings/{id}
+     */
+    #[Route('/bookings/{id}', name: 'booking_one', methods: ['GET'])]
+    public function getOne(int $id): JsonResponse
+    {
+        $booking = $this->em->getRepository(Booking::class)->find($id);
 
         if (!$booking) {
             return new JsonResponse(['error' => 'Booking not found'], 404);
         }
 
-        return new JsonResponse([
-            'id' => $booking->getId(),
-            'guest' => $booking->getGuest()->getFullName(),
-            'room' => $booking->getRoom()->getRoomNumber(),
-            'check_in' => $booking->getCheckIn()->format('Y-m-d'),
-            'check_out' => $booking->getCheckOut()->format('Y-m-d'),
-            'total_price' => $booking->getTotalPrice(),
-            'status' => $booking->getStatus(),
-        ]);
+        return new JsonResponse($booking);
     }
 
-    // CREATE BOOKING
-    #[Route('/create', name: 'booking_create', methods: ['POST'])]
+    /**
+     * CREATE booking
+     */
+    #[Route('/bookings', name: 'booking_create', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
 
-        $guest = $this->guestRepo->find($data['guest_id'] ?? 0);
-        $room = $this->roomRepo->find($data['room_id'] ?? 0);
+        // Перевірка обов'язкових полів
+        $this->checker->check($data, self::REQUIRED_FIELDS);
 
-        if (!$guest || !$room) {
-            return new JsonResponse(['error' => 'Invalid guest or room'], 400);
-        }
+        // Валідація + створення через Manager
+        $booking = $this->bookingManager->createBooking($data);
 
-        $booking = new Booking();
-        $booking->setGuest($guest);
-        $booking->setRoom($room);
-        $booking->setCheckIn(new \DateTime($data['check_in']));
-        $booking->setCheckOut(new \DateTime($data['check_out']));
-        $booking->setTotalPrice($data['total_price'] ?? 0);
-        $booking->setStatus('pending');
-
-        $this->em->persist($booking);
         $this->em->flush();
 
-        return new JsonResponse(['message' => 'Booking created', 'id' => $booking->getId()], 201);
+        return new JsonResponse($booking, Response::HTTP_CREATED);
     }
 
-    // UPDATE BOOKING
-    #[Route('/update/{id}', name: 'booking_update', methods: ['PUT'])]
-    public function update(Request $request, int $id): JsonResponse
+    /**
+     * UPDATE booking
+     */
+    #[Route('/bookings/{id}', name: 'booking_update', methods: ['PUT'])]
+    public function update(int $id, Request $request): JsonResponse
     {
-        $booking = $this->bookingRepo->find($id);
+        $booking = $this->em->getRepository(Booking::class)->find($id);
 
         if (!$booking) {
             return new JsonResponse(['error' => 'Booking not found'], 404);
@@ -105,24 +98,19 @@ class BookingController extends AbstractController
 
         $data = json_decode($request->getContent(), true);
 
-        if (isset($data['status'])) {
-            $booking->setStatus($data['status']);
-        }
-
-        if (isset($data['total_price'])) {
-            $booking->setTotalPrice($data['total_price']);
-        }
-
+        $this->bookingManager->updateBooking($booking, $data);
         $this->em->flush();
 
-        return new JsonResponse(['message' => 'Booking updated']);
+        return new JsonResponse($booking);
     }
 
-    // DELETE BOOKING
-    #[Route('/delete/{id}', name: 'booking_delete', methods: ['DELETE'])]
+    /**
+     * DELETE booking
+     */
+    #[Route('/bookings/{id}', name: 'booking_delete', methods: ['DELETE'])]
     public function delete(int $id): JsonResponse
     {
-        $booking = $this->bookingRepo->find($id);
+        $booking = $this->em->getRepository(Booking::class)->find($id);
 
         if (!$booking) {
             return new JsonResponse(['error' => 'Booking not found'], 404);

@@ -19,6 +19,9 @@ class GuestController extends AbstractController
     private RequestCheckerService $requestChecker;
     private EntityManagerInterface $em;
 
+    const ITEMS_PER_PAGE = 10;
+    const REQUIRED_FIELDS = ['full_name', 'email'];
+
     public function __construct(
         GuestManager $guestManager,
         RequestCheckerService $requestChecker,
@@ -29,26 +32,46 @@ class GuestController extends AbstractController
         $this->em = $em;
     }
 
-    const REQUIRED_FIELDS = ['full_name', 'email', 'phone'];
+    /**
+     * =============================
+     * PAGINATION + FILTERS
+     * GET /guests
+     * =============================
+     */
+    #[Route('/guests', name: 'get_guests_collection', methods: ['GET'])]
+    public function getCollection(Request $request): JsonResponse
+    {
+        $query = $request->query->all();
+
+        $itemsPerPage = isset($query['itemsPerPage'])
+            ? (int)$query['itemsPerPage']
+            : self::ITEMS_PER_PAGE;
+
+        $page = isset($query['page'])
+            ? (int)$query['page']
+            : 1;
+
+        $result = $this->em
+            ->getRepository(Guest::class)
+            ->getAllGuestsByFilter($query, $itemsPerPage, $page);
+
+        return new JsonResponse($result);
+    }
 
     /**
+     * =============================
      * CREATE Guest
-     * @throws Exception
+     * POST /guests
+     * =============================
      */
     #[Route('/guests', name: 'create_guest', methods: ['POST'])]
     public function create(Request $request): JsonResponse
     {
         $data = json_decode($request->getContent(), true);
 
-        // Перевірка наявності обов'язкових полів
         $this->requestChecker->check($data, self::REQUIRED_FIELDS);
 
-        // Створення гостя через сервіс
-        $guest = $this->guestManager->createGuest(
-            $data['full_name'],
-            $data['email'],
-            $data['phone']
-        );
+        $guest = $this->guestManager->createGuest($data);
 
         $this->em->flush();
 
@@ -56,17 +79,10 @@ class GuestController extends AbstractController
     }
 
     /**
-     * GET all guests
-     */
-    #[Route('/guests', name: 'get_guests', methods: ['GET'])]
-    public function getAll(): JsonResponse
-    {
-        $guests = $this->em->getRepository(Guest::class)->findAll();
-        return new JsonResponse($guests);
-    }
-
-    /**
-     * GET guest by id
+     * =============================
+     * GET ONE Guest
+     * GET /guests/{id}
+     * =============================
      */
     #[Route('/guests/{id}', name: 'get_guest', methods: ['GET'])]
     public function getOne(int $id): JsonResponse
@@ -81,8 +97,10 @@ class GuestController extends AbstractController
     }
 
     /**
-     * UPDATE guest
-     * @throws Exception
+     * =============================
+     * UPDATE Guest
+     * PUT /guests/{id}
+     * =============================
      */
     #[Route('/guests/{id}', name: 'update_guest', methods: ['PUT'])]
     public function update(int $id, Request $request): JsonResponse
@@ -95,7 +113,6 @@ class GuestController extends AbstractController
 
         $data = json_decode($request->getContent(), true);
 
-        // Оновлення через сервіс
         $this->guestManager->updateGuest($guest, $data);
         $this->em->flush();
 
@@ -103,7 +120,10 @@ class GuestController extends AbstractController
     }
 
     /**
-     * DELETE guest
+     * =============================
+     * DELETE Guest
+     * DELETE /guests/{id}
+     * =============================
      */
     #[Route('/guests/{id}', name: 'delete_guest', methods: ['DELETE'])]
     public function delete(int $id): JsonResponse

@@ -2,17 +2,18 @@
 
 namespace App\Controller;
 
-use App\Entity\Hotel;
+use App\Entity\RoomType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 
-class HotelController extends AbstractController
+class RoomTypeController extends AbstractController
 {
-    private EntityManagerInterface $em;
     const ITEMS_PER_PAGE = 10;
+
+    private EntityManagerInterface $em;
 
     public function __construct(EntityManagerInterface $em)
     {
@@ -20,9 +21,9 @@ class HotelController extends AbstractController
     }
 
     /**
-     * GET hotels with pagination + filters
+     * GET Room Types with filters + pagination
      */
-    #[Route('/hotels', name: 'get_hotels_collection', methods: ['GET'])]
+    #[Route('/room-types', name: 'get_room_types_collection', methods: ['GET'])]
     public function getCollection(Request $request): JsonResponse
     {
         $query = $request->query->all();
@@ -36,8 +37,8 @@ class HotelController extends AbstractController
             : 1;
 
         $result = $this->em
-            ->getRepository(Hotel::class)
-            ->getAllHotelsByFilter($query, $itemsPerPage, $page);
+            ->getRepository(RoomType::class)
+            ->getAllRoomTypesByFilter($query, $itemsPerPage, $page);
 
         return new JsonResponse($result);
     }

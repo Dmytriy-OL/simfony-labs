@@ -3,10 +3,10 @@
 namespace App\Service;
 
 use App\Entity\Guest;
-use App\Service\RequestCheckerService;
 use Doctrine\ORM\EntityManagerInterface;
+use App\Service\RequestCheckerService;
 
-class GuestService
+class GuestEntityService
 {
     private EntityManagerInterface $entityManager;
     private RequestCheckerService $requestCheckerService;
@@ -19,31 +19,20 @@ class GuestService
         $this->requestCheckerService = $requestCheckerService;
     }
 
-    /**
-     * Створення гостя
-     */
-    public function createGuest(array $data): Guest
+    public function createGuest(string $fullName, string $email, ?string $phone): Guest
     {
-        // Перевірка обовʼязкових полів
-        $this->requestCheckerService->check($data, ['full_name', 'email']);
-
-        // Створюємо обʼєкт
         $guest = new Guest();
-        $guest->setFullName($data['full_name']);
-        $guest->setEmail($data['email']);
-        $guest->setPhone($data['phone'] ?? null);
+        $guest->setFullName($fullName);
+        $guest->setEmail($email);
+        $guest->setPhone($phone);
 
-        // Валідація через Symfony Constraints
+        // валідація через Constraints
         $this->requestCheckerService->validateRequestDataByConstraints($guest);
 
         $this->entityManager->persist($guest);
-
         return $guest;
     }
 
-    /**
-     * Оновлення даних гостя
-     */
     public function updateGuest(Guest $guest, array $data): Guest
     {
         foreach ($data as $key => $value) {
@@ -53,6 +42,7 @@ class GuestService
             }
         }
 
+        // повторна валідація
         $this->requestCheckerService->validateRequestDataByConstraints($guest);
 
         return $guest;

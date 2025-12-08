@@ -6,55 +6,67 @@ use App\Entity\Guest;
 use App\Service\RequestCheckerService;
 use Doctrine\ORM\EntityManagerInterface;
 
-class GuestService
+class GuestManager
 {
     private EntityManagerInterface $entityManager;
-    private RequestCheckerService $requestCheckerService;
+    private RequestCheckerService $requestChecker;
 
     public function __construct(
         EntityManagerInterface $entityManager,
-        RequestCheckerService $requestCheckerService
+        RequestCheckerService $requestChecker
     ) {
         $this->entityManager = $entityManager;
-        $this->requestCheckerService = $requestCheckerService;
+        $this->requestChecker = $requestChecker;
     }
 
     /**
-     * Створення гостя
+     * CREATE Guest
      */
     public function createGuest(array $data): Guest
     {
-        // Перевірка обовʼязкових полів
-        $this->requestCheckerService->check($data, ['full_name', 'email']);
-
-        // Створюємо обʼєкт
         $guest = new Guest();
+
         $guest->setFullName($data['full_name']);
         $guest->setEmail($data['email']);
         $guest->setPhone($data['phone'] ?? null);
 
-        // Валідація через Symfony Constraints
-        $this->requestCheckerService->validateRequestDataByConstraints($guest);
+        // Валідація Entity через Symfony Constraints
+        $this->requestChecker->validateRequestDataByConstraints($guest);
 
         $this->entityManager->persist($guest);
+        $this->entityManager->flush();
 
         return $guest;
     }
 
     /**
-     * Оновлення даних гостя
+     * UPDATE Guest
      */
     public function updateGuest(Guest $guest, array $data): Guest
     {
         foreach ($data as $key => $value) {
-            $method = 'set' . ucfirst($key);
+
+            // перетворення full_name → setFullName
+            $method = 'set' . str_replace('_', '', ucwords($key, '_'));
+
             if (method_exists($guest, $method)) {
                 $guest->$method($value);
             }
         }
 
-        $this->requestCheckerService->validateRequestDataByConstraints($guest);
+        $this->requestChecker->validateRequestDataByConstraints($guest);
+
+        $this->entityManager->flush();
 
         return $guest;
+    }
+
+    /**
+     * DELETE Guest
+     */
+    public function deleteGuest(Guest $guest): void
+    {
+        $this->entityManager->remove($guest);
+        $this->entityManager->flush();
     }
 }

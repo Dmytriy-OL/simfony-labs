@@ -3,8 +3,8 @@
 namespace App\Controller;
 
 use App\Entity\Booking;
-use App\Services\BookingManager;
-use App\Services\RequestCheckerService;
+use App\Service\BookingManager;
+use App\Service\RequestCheckerService;
 use Doctrine\ORM\EntityManagerInterface;
 use Exception;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -12,6 +12,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
+
 
 class BookingController extends AbstractController
 {

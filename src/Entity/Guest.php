@@ -2,11 +2,48 @@
 
 namespace App\Entity;
 
+use ApiPlatform\Metadata\ApiResource;
+use ApiPlatform\Metadata\Get;
+use ApiPlatform\Metadata\GetCollection;
+use ApiPlatform\Metadata\Post;
+use ApiPlatform\Metadata\Patch;
+use ApiPlatform\Metadata\Delete;
+use ApiPlatform\Metadata\ApiFilter;
+use ApiPlatform\Doctrine\Orm\Filter\SearchFilter;
+use App\State\GuestCreateProcessor;
+use App\State\GuestUpdateProcessor;
+use App\State\GuestCollectionProvider;
 use Doctrine\ORM\Mapping as ORM;
-use Symfony\Component\Validator\Constraints as Assert;
 
 #[ORM\Entity]
-#[ORM\Table(name: 'guests')]
+#[ApiResource(
+    operations: [
+        // GET /guests (пагінація + фільтри)
+        new GetCollection(
+            provider: GuestCollectionProvider::class
+        ),
+
+        // GET /guests/{id}
+        new Get(),
+
+        // POST /guests
+        new Post(
+            processor: GuestCreateProcessor::class
+        ),
+
+        // PATCH /guests/{id}
+        new Patch(
+            processor: GuestUpdateProcessor::class
+        ),
+
+        // DELETE /guests/{id}
+        new Delete(),
+    ]
+)]
+#[ApiFilter(SearchFilter::class, properties: [
+    'fullName' => 'partial',
+    'email' => 'partial'
+])]
 class Guest
 {
     #[ORM\Id]
@@ -14,85 +51,25 @@ class Guest
     #[ORM\Column]
     private ?int $id = null;
 
-    // full_name VARCHAR(100) NOT NULL
-    #[ORM\Column(name: 'full_name', type: 'string', length: 100)]
-    #[Assert\NotNull]
-    #[Assert\NotBlank]
-    #[Assert\Length(min: 3, max: 100)]
-    private ?string $fullName = null;
+    #[ORM\Column(length: 255)]
+    private string $fullName;
 
-    // email VARCHAR(100) UNIQUE NOT NULL
-    #[ORM\Column(type: 'string', length: 100, unique: true)]
-    #[Assert\NotNull]
-    #[Assert\NotBlank]
-    #[Assert\Email]
-    #[Assert\Length(max: 100)]
-    private ?string $email = null;
+    #[ORM\Column(length: 255, unique: true)]
+    private string $email;
 
-    // phone VARCHAR(20) NULL
-    #[ORM\Column(type: 'string', length: 20, nullable: true)]
-    #[Assert\Length(max: 20)]
+    #[ORM\Column(length: 20, nullable: true)]
     private ?string $phone = null;
 
-    // created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    #[ORM\Column(name: 'created_at', type: 'datetime_immutable')]
-    #[Assert\NotNull]
-    private ?\DateTimeImmutable $createdAt = null;
+    // GETTERS / SETTERS
 
-    public function __construct()
-    {
-        // якщо не прийшло з бази — ставимо зараз
-        if ($this->createdAt === null) {
-            $this->createdAt = new \DateTimeImmutable();
-        }
-    }
+    public function getId(): ?int { return $this->id; }
 
-    public function getId(): ?int
-    {
-        return $this->id;
-    }
+    public function getFullName(): string { return $this->fullName; }
+    public function setFullName(string $name): self { $this->fullName = $name; return $this; }
 
-    public function getFullName(): ?string
-    {
-        return $this->fullName;
-    }
+    public function getEmail(): string { return $this->email; }
+    public function setEmail(string $email): self { $this->email = $email; return $this; }
 
-    public function setFullName(string $fullName): self
-    {
-        $this->fullName = $fullName;
-        return $this;
-    }
-
-    public function getEmail(): ?string
-    {
-        return $this->email;
-    }
-
-    public function setEmail(string $email): self
-    {
-        $this->email = $email;
-        return $this;
-    }
-
-    public function getPhone(): ?string
-    {
-        return $this->phone;
-    }
-
-    public function setPhone(?string $phone): self
-    {
-        $this->phone = $phone;
-        return $this;
-    }
-
-    public function getCreatedAt(): ?\DateTimeImmutable
-    {
-        return $this->createdAt;
-    }
-
-    public function setCreatedAt(\DateTimeImmutable $createdAt): self
-    {
-        $this->createdAt = $createdAt;
-        return $this;
-    }
+    public function getPhone(): ?string { return $this->phone; }
+    public function setPhone(?string $phone): self { $this->phone = $phone; return $this; }
 }

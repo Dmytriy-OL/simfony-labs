@@ -9,12 +9,12 @@ services:
             - '../src/Entity/'
             - '../src/Kernel.php'
 
-    # Автоматичне завантаження всіх контролерів
+    # Контролери
     App\Controller\:
         resource: '../src/Controller/'
         tags: ['controller.service_arguments']
 
-    # Ручна реєстрація сервісів (менеджерів)
+    # Сервіси
     App\Service\BookingManager:
         autowire: true
         autoconfigure: true
@@ -31,6 +31,20 @@ services:
         autowire: true
         autoconfigure: true
 
-    # Додатково (на випадок, якщо треба)
+    # Репозиторії
     App\Repository\:
         resource: '../src/Repository'
+
+    App\EventListener\UserPostUpdateListener:
+        tags:
+            - { name: doctrine.event_listener, event: postUpdate }
+
+    App\EventListener\OrderPostUpdateListener:
+        tags:
+            - { name: doctrine.event_listener, event: postUpdate }
+
+    App\Extension\:
+        resource: '../src/Extension'
+        tags:
+            - 'api_platform.doctrine.orm.query_extension.collection'
+            - 'api_platform.doctrine.orm.query_extension.item'
